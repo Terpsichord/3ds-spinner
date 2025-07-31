@@ -42,6 +42,11 @@ GFXBUILD	:=	$(BUILD)
 #ROMFS		:=	romfs
 #GFXBUILD	:=	$(ROMFS)/gfx
 
+APP_TITLE	:=	3ds-spinner
+APP_DESCRIPTION	:=	A random spinner for 3DS
+APP_AUTHOR	:=	Terpsichord
+APP_ICON 	:= $(TOPDIR)/icon.png
+
 #---------------------------------------------------------------------------------
 # options for code generation
 #---------------------------------------------------------------------------------
