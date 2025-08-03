@@ -2,6 +2,8 @@
 
 This a simple 3DS app that allows you to create a spinner to randomly select an item from a list.
 
+![preview of app](preview.png)
+
 ### Usage
 - Press Y to add a new option
 - Press A to spin the wheel
