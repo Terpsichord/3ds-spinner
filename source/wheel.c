@@ -1,6 +1,7 @@
 #include <3ds.h>
 #include <citro2d.h>
 
+#include <stdio.h>
 #include <math.h>
 #include <stdlib.h>
 #include <sys/stat.h>
@@ -41,11 +42,15 @@ void initWheel(Wheel *w) {
 
 
 
-int getColorIndex(int i, int numSectors, int sectorsPerOption) {
+int getColorIndex(int i, int numOptions, int sectorsPerOption, bool duplicated) {
+    if (duplicated) {
+        i %= numOptions;
+    }
+
     int idx = i % NUM_COLORS / sectorsPerOption;
 
     // this is to prevent two of the same color next to each other
-    if (numSectors % NUM_COLORS == 1 && i == numSectors - 1 && numSectors != 1) {
+    if (numOptions % NUM_COLORS == 1 && i == numOptions - 1 && numOptions != 1) {
         idx++;
     }
 
@@ -61,7 +66,8 @@ void drawWheel(const Wheel *w) {
         radius *= 0.9f;
     }
 
-    int numSectors = MAX(w->numOptions * sectorsPerOption, 1);
+    int numOptions = MAX(w->numOptions * sectorsPerOption, 1);
+    int numSectors = numOptions * (w->duplicated ? 3 : 1);
 
     float anglePerSector = 360.0f / numSectors;
 
@@ -74,7 +80,7 @@ void drawWheel(const Wheel *w) {
         float x2 = w->centerX + radius * cosf(a2);
         float y2 = w->centerY - radius * sinf(a2);
 
-        int colorIdx = getColorIndex(i, numSectors, sectorsPerOption);
+        int colorIdx = getColorIndex(i, numOptions, sectorsPerOption, w->duplicated);
 
         C2D_DrawTriangle(
                 w->centerX, w->centerY, optionColors[colorIdx],
@@ -99,7 +105,9 @@ void updateWheel(Wheel *w) {
         w->spinning = false;
         w->angularVelocity = 0.0f;
 
-        w->selectedOption = (int) (fmodf(450.0f - w->angle, 360.0f)) / (360 / w->numOptions);
+        float sectors = w->numOptions * (w->duplicated ? 3 : 1);
+        w->selectedOption = (int) (fmodf(450.0f - w->angle, 360.0f) / (360 / sectors));
+        w->selectedOption %= w->numOptions;
         w->finishedSpin = true;
     }
 }
@@ -152,7 +160,7 @@ static void drawCross(float x, float y, float size, float t, u32 color) {
 
 void drawWheelOptions(const Wheel *w, float scrollOffset) {
     for (int i = 0; i < w->numOptions; i++) {
-        int colorIdx = getColorIndex(i, w->numOptions, 1);
+        int colorIdx = getColorIndex(i, w->numOptions, 1, false);
 
         // border
         C2D_DrawRectSolid(PAD,
@@ -208,6 +216,23 @@ void removeWheelOption(Wheel *w, int idx) {
     updateWheelOptions(w);
 }
 
+void shuffleWheelOptions(Wheel *w) {
+    for (int i = 0; i < w->numOptions; i++) {
+        int j = rand() % (i + 1);
+        char tmp[MAX_OPTION_LEN];
+        C2D_Text tmpText;
+
+        strncpy(tmp, w->options[i], MAX_OPTION_LEN - 1);
+        tmpText = w->optionsText[i];
+
+        strncpy(w->options[i], w->options[j], MAX_OPTION_LEN - 1);
+        w->optionsText[i] = w->optionsText[j];
+
+        strncpy(w->options[j], tmp, MAX_OPTION_LEN - 1);
+        w->optionsText[j] = tmpText;
+    }
+}
+
 void fetchWheelOptions(Wheel *w) {
     FILE *f = fopen("sdmc:/3ds/3ds-spinner/options.txt", "r");
     if (!f) return;
@@ -227,6 +252,12 @@ void fetchWheelOptions(Wheel *w) {
     } else {
         updateWheelOptions(w);
     }
+
+    f = fopen("sdmc:/3ds/3ds-spinner/duplicated", "r");
+    if (f) {
+        w->duplicated = true;
+        fclose(f);
+    }
 }
 
 void makeMissingDir(const char *path) {
@@ -243,11 +274,11 @@ void makeMissingDir(const char *path) {
 void saveWheelOptions(const Wheel *w) {
     makeMissingDir("sdmc:/3ds/3ds-spinner");
     FILE *f = fopen("sdmc:/3ds/3ds-spinner/options.txt", "w");
-    if (!f) return;
+    if (!f) goto next;
 
     if (w->numOptions == 0) {
         fclose(f);
-        return;
+        goto next;
     }
 
     for (int i = 0; i < w->numOptions - 1; i++) {
@@ -255,4 +286,13 @@ void saveWheelOptions(const Wheel *w) {
     }
     fprintf(f, "%s", w->options[w->numOptions - 1]);
     fclose(f);
+
+    next:
+    if (w->duplicated) {
+        f = fopen("sdmc:/3ds/3ds-spinner/duplicated", "w");
+        if (f) fclose(f);
+    } else {
+        remove("sdmc:/3ds/3ds-spinner/duplicated");
+    }
 }
+

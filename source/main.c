@@ -6,12 +6,12 @@
 #include "wheel.h"
 #include "main.h"
 
-u32 white, gray, black, scrollGray;
+u32 white, gray, black, darkGray, scrollGray;
 u32 optionColors[NUM_COLORS];
 bool darkText[NUM_COLORS] = { false, false, false, true /* yellow */,  false, true /* cyan */ };
 
 C2D_TextBuf staticTextBuf, dynamicTextBuf;
-C2D_Text selectedText, continueText, removeText, addText, aText;
+C2D_Text selectedText, continueText, removeText, addText, aText, duplicateText, hideText, shuffleText;
 
 void initGfx(C3D_RenderTarget **top, C3D_RenderTarget **bottom) {
     gfxInitDefault();
@@ -26,6 +26,7 @@ void initGfx(C3D_RenderTarget **top, C3D_RenderTarget **bottom) {
 void initColors(void) {
     white = C2D_Color32(0xFF, 0xFF, 0xFF, 0xFF);
     gray = C2D_Color32(0xE0, 0xE0, 0xE0, 0xFF);
+    darkGray = C2D_Color32(0x40, 0x40, 0x40, 0xFF);
     scrollGray = C2D_Color32(0x40, 0x40, 0x40, 0xE0);
     black = C2D_Color32(0x00, 0x00, 0x00, 0xFF);
 
@@ -46,12 +47,18 @@ void initText(void) {
     C2D_TextParse(&removeText, staticTextBuf, "\uE002 Remove and continue");
     C2D_TextParse(&addText, staticTextBuf, "Press \uE003 to add a new option");
     C2D_TextParse(&aText, staticTextBuf, "\uE000");
+    C2D_TextParse(&duplicateText, staticTextBuf, "Duplicate x3");
+    C2D_TextParse(&hideText, staticTextBuf, "Hide options");
+    C2D_TextParse(&shuffleText, staticTextBuf, "Shuffle");
 
     C2D_TextOptimize(&selectedText);
     C2D_TextOptimize(&continueText);
     C2D_TextOptimize(&removeText);
     C2D_TextOptimize(&addText);
     C2D_TextOptimize(&aText);
+    C2D_TextOptimize(&duplicateText);
+    C2D_TextOptimize(&hideText);
+    C2D_TextOptimize(&shuffleText);
 }
 
 void finish(void) {
@@ -75,13 +82,27 @@ void drawPopup(const C2D_Text *text, u32 color, bool useDarkText) {
 }
 
 void drawScrollBar(float scroll, float maxScroll) {
-    float height = BOTTOM_HEIGHT / (maxScroll + BOTTOM_HEIGHT) * (BOTTOM_HEIGHT - 2 * PAD);
-    float offset = PAD + scroll / maxScroll * (BOTTOM_HEIGHT - 2 * PAD - height);
+    float height = (BOTTOM_HEIGHT - BAR_HEIGHT) / (maxScroll + BOTTOM_HEIGHT - BAR_HEIGHT) * (BOTTOM_HEIGHT - 2 * PAD - BAR_HEIGHT);
+    float offset = PAD + scroll / maxScroll * (BOTTOM_HEIGHT - 2 * PAD - BAR_HEIGHT - height);
 
     C2D_DrawRectSolid(BOTTOM_WIDTH - 6.0f, offset, 0.0f, 2.0f, height, scrollGray);
 }
 
-void render(C3D_RenderTarget *top, C3D_RenderTarget *bottom, const Wheel *wheel, float scroll, float maxScroll) {
+void drawBar(bool duplicated, bool hidden, bool shuffled) {
+    C2D_DrawRectSolid(0.0f, BOTTOM_HEIGHT - BAR_HEIGHT, 0.0f, BOTTOM_WIDTH, BAR_HEIGHT, white);
+    C2D_DrawRectSolid(0.0f, BOTTOM_HEIGHT - BAR_HEIGHT, 0.0f, BOTTOM_WIDTH, 2.0f, gray);
+
+    C2D_DrawRectSolid(BTN_HPAD, BOTTOM_HEIGHT - BAR_HEIGHT + BTN_VPAD, 0.0f, BTN_WIDTH - 2, BAR_HEIGHT - 2 * BTN_VPAD, duplicated ? darkGray : gray);
+    C2D_DrawText(&duplicateText, C2D_WithColor | C2D_AlignCenter, BTN_HPAD + BTN_WIDTH / 2, BOTTOM_HEIGHT - BAR_HEIGHT + BTN_VPAD + TEXT_VPAD, 0.0f, 0.5f, 0.5f, duplicated ? white : black);
+
+    C2D_DrawRectSolid(BTN_HPAD + BTN_WIDTH, BOTTOM_HEIGHT - BAR_HEIGHT + BTN_VPAD, 0.0f, BTN_WIDTH - 2, BAR_HEIGHT - 2 * BTN_VPAD, hidden ? darkGray : gray);
+    C2D_DrawText(&hideText, C2D_WithColor | C2D_AlignCenter, BTN_HPAD + BTN_WIDTH + BTN_WIDTH / 2, BOTTOM_HEIGHT - BAR_HEIGHT + BTN_VPAD + TEXT_VPAD, 0.0f, 0.5f, 0.5f, hidden ? white : black);
+
+    C2D_DrawRectSolid(BTN_HPAD + 2 * BTN_WIDTH, BOTTOM_HEIGHT - BAR_HEIGHT + BTN_VPAD, 0.0f, BTN_WIDTH - 2, BAR_HEIGHT - 2 * BTN_VPAD, shuffled ? darkGray : gray);
+    C2D_DrawText(&shuffleText, C2D_WithColor | C2D_AlignCenter, BTN_HPAD + 2 * BTN_WIDTH + BTN_WIDTH / 2, BOTTOM_HEIGHT - BAR_HEIGHT + BTN_VPAD + TEXT_VPAD, 0.0f, 0.5f, 0.5f, shuffled ? white : black);
+}
+
+void render(C3D_RenderTarget *top, C3D_RenderTarget *bottom, const Wheel *wheel, float scroll, float maxScroll, bool hidden, bool shuffleHeld) {
     C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
 
     C2D_TargetClear(top, white);
@@ -92,7 +113,7 @@ void render(C3D_RenderTarget *top, C3D_RenderTarget *bottom, const Wheel *wheel,
         drawWheel(wheel);
         if (wheel->finishedSpin) {
             drawPopup(&wheel->optionsText[wheel->selectedOption],
-                      optionColors[getColorIndex(wheel->selectedOption, wheel->numOptions, 1)],
+                      optionColors[getColorIndex(wheel->selectedOption, wheel->numOptions, 1, false)],
                       darkText[wheel->selectedOption]);
         } else {
             if (wheel->numOptions > 0) {
@@ -108,17 +129,20 @@ void render(C3D_RenderTarget *top, C3D_RenderTarget *bottom, const Wheel *wheel,
     C2D_SceneBegin(bottom);
     {
         if (!wheel->spinning && !wheel->finishedSpin) {
-            drawWheelOptions(wheel, scroll);
-            if (maxScroll > 0.0f) {
-                drawScrollBar(scroll, maxScroll);
+            if (!hidden) {
+                drawWheelOptions(wheel, scroll);
+                if (maxScroll > 0.0f) {
+                    drawScrollBar(scroll, maxScroll);
+                }
             }
+            drawBar(wheel->duplicated, hidden, shuffleHeld);
         }
     }
 
     C3D_FrameEnd(0);
 }
 
-void handleTouch(Wheel *wheel, float *scroll) {
+void handleTouch(Wheel *wheel, float *scroll, bool *barHeld, bool *hidden, int *shuffleHeld) {
     // code borrowed and modified from
     // https://github.com/devkitPro/3ds-hbmenu/blob/master/source/ui/menu.c#L209
 
@@ -135,11 +159,29 @@ void handleTouch(Wheel *wheel, float *scroll) {
     if (kDown & KEY_TOUCH) {
         heldTime = 0;
         firstTouch = touchPos;
+        if (touchPos.py >= BOTTOM_HEIGHT - BAR_HEIGHT) {
+            *barHeld = true;
+
+            if (touchPos.py >= BOTTOM_HEIGHT - BAR_HEIGHT + BTN_VPAD && touchPos.py < BOTTOM_HEIGHT - BTN_VPAD) {
+
+                if (touchPos.px >= BTN_HPAD && touchPos.px < BTN_HPAD + BTN_WIDTH - 2) {
+                    wheel->duplicated = !wheel->duplicated;
+                } else if (touchPos.px >= BTN_HPAD + BTN_WIDTH && touchPos.px < BTN_HPAD + 2 * BTN_WIDTH - 2) {
+                    *hidden = !*hidden;
+                } else if (touchPos.px >= BTN_HPAD + 2 * BTN_WIDTH && touchPos.px < BTN_HPAD + 3 * BTN_WIDTH - 2) {
+                    shuffleWheelOptions(wheel);
+                    (*shuffleHeld)++;
+                }
+            }
+        }
     } else if (kHeld & KEY_TOUCH) {
         heldTime += 1;
-        *scroll += prevTouch.py - touchPos.py;
+        if (!*barHeld && !*hidden) {
+            *scroll += prevTouch.py - touchPos.py;
+        }
     } else if (kUp & KEY_TOUCH && heldTime < 30
-            && (ABS(firstTouch.px-prevTouch.px)+ABS(firstTouch.py-prevTouch.py)) < 12) {
+            && (ABS(firstTouch.px-prevTouch.px)+ABS(firstTouch.py-prevTouch.py)) < 12
+            && !*barHeld && !*hidden) {
         float x = prevTouch.px, y = prevTouch.py + *scroll - PAD - BORDER;
         int selectedOption = y / (HEIGHT + PAD);
         if (y > 0 && fmodf(y, HEIGHT + PAD) <= HEIGHT - 2 * BORDER && selectedOption < wheel->numOptions) {
@@ -157,8 +199,11 @@ void handleTouch(Wheel *wheel, float *scroll) {
             } else if (x >= BOTTOM_WIDTH - PAD - HEIGHT && x <= BOTTOM_WIDTH - PAD - BORDER) {
                 removeWheelOption(wheel, selectedOption);
             }
-
         }
+    }
+
+    if (kUp & KEY_TOUCH) {
+        *barHeld = false;
     }
 
     prevTouch = touchPos;
@@ -178,6 +223,8 @@ int main() {
     fetchWheelOptions(&wheel);
 
     float scroll = 0.0f, maxScroll = 0.0f;
+    int shuffleHeld = 0;
+    bool barHeld = false, hidden = false;
 
     SwkbdState swkbd;
     swkbdInit(&swkbd, SWKBD_TYPE_NORMAL, 2, MAX_OPTION_LEN - 1);
@@ -188,6 +235,13 @@ int main() {
         u32 kDown = hidKeysDown();
 
         if (kDown & KEY_START) break;
+
+        if (shuffleHeld > 0) {
+            shuffleHeld++;
+            if (shuffleHeld > 7) {
+                shuffleHeld = 0;
+            }
+        }
 
         if (wheel.spinning) {
             updateWheel(&wheel);
@@ -212,14 +266,14 @@ int main() {
                 spinWheelTo(&wheel, angle);
             }
 
-            handleTouch(&wheel, &scroll);
+            handleTouch(&wheel, &scroll, &barHeld, &hidden, &shuffleHeld);
 
-            maxScroll = wheel.numOptions * (HEIGHT + PAD) - BOTTOM_HEIGHT + PAD;
+            maxScroll = wheel.numOptions * (HEIGHT + PAD) - BOTTOM_HEIGHT + PAD + BAR_HEIGHT;
             scroll = MIN(scroll, maxScroll);
             scroll = MAX(scroll, 0.0f);
         }
 
-        render(top, bottom, &wheel, scroll, maxScroll);
+        render(top, bottom, &wheel, scroll, maxScroll, hidden, shuffleHeld);
     }
 
     saveWheelOptions(&wheel);
