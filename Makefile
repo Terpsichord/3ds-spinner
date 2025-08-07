@@ -10,6 +10,8 @@ endif
 TOPDIR ?= $(CURDIR)
 include $(DEVKITARM)/3ds_rules
 
+RESOURCE	:=	$(TOPDIR)/resource
+
 #---------------------------------------------------------------------------------
 # TARGET is the name of the output
 # BUILD is the directory where object files & intermediate files will be placed
@@ -45,7 +47,10 @@ GFXBUILD	:=	$(BUILD)
 APP_TITLE	:=	3ds-spinner
 APP_DESCRIPTION	:=	A random spinner for 3DS
 APP_AUTHOR	:=	Terpsichord
-APP_ICON 	:= $(TOPDIR)/icon.png
+APP_ICON 	:= $(RESOURCE)/icon.png
+APP_VER     := 0.2.0
+PRODUCT_CODE := CTR-SPINNER
+UNIQUE_ID  := 0x66c94
 
 #---------------------------------------------------------------------------------
 # options for code generation
@@ -164,11 +169,21 @@ ifneq ($(ROMFS),)
 	export _3DSXFLAGS += --romfs=$(CURDIR)/$(ROMFS)
 endif
 
+
+BANNERTOOL ?= $(RESOURCE)/bannertool
+MAKEROM ?= $(RESOURCE)/makerom
+MAKEROM_ARGS := -elf "$(OUTPUT).elf" -rsf "$(RESOURCE)/app.rsf" -banner "$(BUILD)/banner.bnr" -icon "$(BUILD)/icon.icn" -DAPP_TITLE="$(APP_TITLE)" -DAPP_PRODUCT_CODE="$(PRODUCT_CODE)" -DAPP_UNIQUE_ID="$(UNIQUE_ID)"
+
 .PHONY: all clean
 
 #---------------------------------------------------------------------------------
 all: $(BUILD) $(GFXBUILD) $(DEPSDIR) $(ROMFS_T3XFILES) $(T3XHFILES)
+	@echo Builiding 3dsx...
 	@$(MAKE) --no-print-directory -C $(BUILD) -f $(CURDIR)/Makefile
+	@echo Building cia...
+	@$(BANNERTOOL) makebanner -i $(RESOURCE)/banner.png -a $(RESOURCE)/banner.wav -o $(BUILD)/banner.bnr
+	@$(BANNERTOOL) makesmdh -s "$(APP_TITLE)" -l "$(APP_DESCRIPTION)" -p "$(APP_AUTHOR)" -i $(APP_ICON) -o $(BUILD)/icon.icn
+	@$(MAKEROM) -f cia -o $(OUTPUT).cia -target t -exefslogo $(MAKEROM_ARGS) -ver $(APP_VER)
 
 $(BUILD):
 	@mkdir -p $@
