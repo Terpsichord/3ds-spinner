@@ -71,10 +71,21 @@ void finish(void) {
 }
 
 void drawPopup(const C2D_Text *text, u32 color, bool useDarkText) {
-    C2D_DrawRectSolid(40.0f, 50.0f, 0.0f, 320.0f, 140.0f, gray);
-    C2D_DrawRectSolid(100.0f, 80.0f, 0.0f, 200.0f, 50.0f, color);
+    float textWidth, textHeight, textScale = 1.0f;
+    C2D_TextGetDimensions(text, textScale, textScale, &textWidth, &textHeight);
 
-    C2D_DrawText(text, C2D_WithColor, 110.0f, 90.0f, 0.0f, 1.0f, 1.0f, useDarkText ? black : white);
+    float colorWidth = MAX(textWidth + 20.0f, 200.0f);
+    if (colorWidth > 370.0f) {
+        textScale = 350.0f / textWidth;
+        colorWidth = 370.0f;
+    }
+
+    float grayWidth = MAX(colorWidth + 20.0f, 320.0f);
+
+    C2D_DrawRectSolid(200.0f - grayWidth / 2.0f, 50.0f, 0.0f, grayWidth, 140.0f, gray);
+    C2D_DrawRectSolid(200.0f - colorWidth / 2.0f, 80.0f, 0.0f, colorWidth, 50.0f, color);
+
+    C2D_DrawText(text, C2D_WithColor, 210.0f - colorWidth / 2.0f, 105.0f - textScale * textHeight / 2, 0.0f, textScale, textScale, useDarkText ? black : white);
 
     C2D_DrawText(&selectedText, 0, 173.0f, 130.0f, 0.0f, 0.5f, 0.5f);
     C2D_DrawText(&continueText, 0, 80.0f, 170.0f, 0.0f, 0.5f, 0.5f);

@@ -58,6 +58,8 @@ int getColorIndex(int i, int numOptions, int sectorsPerOption, bool duplicated) 
 }
 
 void drawWheel(const Wheel *w) {
+    if (w->numOptions == 0) return;
+
     int sectorsPerOption = w->numOptions == 1 ? 4 : w->numOptions > 3 ? 1 : 2;
 
     float radius = w->radius;
@@ -90,11 +92,9 @@ void drawWheel(const Wheel *w) {
         );
     }
 
-    if (w->numOptions > 0) {
-        C2D_DrawTriangle(w->centerX - 10.5f, w->centerY - 10.5f, black,
-                         w->centerX + 10.5f, w->centerY - 10.5f, black,
-                         w->centerX, w->centerY - 24.0f, black, 0);
-    }
+    C2D_DrawTriangle(w->centerX - 10.5f, w->centerY - 10.5f, black,
+                     w->centerX + 10.5f, w->centerY - 10.5f, black,
+                     w->centerX, w->centerY - 24.0f, black, 0);
 }
 
 void updateWheel(Wheel *w) {
@@ -162,10 +162,10 @@ void drawWheelOptions(const Wheel *w, float scrollOffset) {
     for (int i = 0; i < w->numOptions; i++) {
         int colorIdx = getColorIndex(i, w->numOptions, 1, false);
 
-        // border
+        // main border
         C2D_DrawRectSolid(PAD,
                           (HEIGHT + PAD) * i + PAD - scrollOffset, 0.0f,
-                          BOTTOM_WIDTH - 2 * PAD,
+                          BOTTOM_WIDTH - 2 * PAD - HEIGHT,
                           HEIGHT,
                           optionColors[colorIdx]);
         // main inner
@@ -175,6 +175,22 @@ void drawWheelOptions(const Wheel *w, float scrollOffset) {
                           HEIGHT - 2 * BORDER,
                           white);
 
+        C2D_DrawText(&w->optionsText[i], 0, PAD + BORDER + TEXT_HPAD, (HEIGHT + PAD) * i + PAD + BORDER + TEXT_VPAD - scrollOffset, 0.0f, 0.8f, 0.8f);
+
+        // main cover
+        C2D_DrawRectSolid(BOTTOM_WIDTH - PAD - HEIGHT - BORDER - TEXT_HPAD,
+                          (HEIGHT + PAD) * i + PAD + BORDER - scrollOffset, 0.0f,
+                          TEXT_HPAD,
+                          HEIGHT - 2 * BORDER,
+                          white);
+
+        // cross border
+        C2D_DrawRectSolid(BOTTOM_WIDTH - PAD - BORDER - HEIGHT,
+                          (HEIGHT + PAD) * i + PAD - scrollOffset, 0.0f,
+                          HEIGHT + BORDER,
+                          HEIGHT,
+                          optionColors[colorIdx]);
+
         // cross inner
         C2D_DrawRectSolid(BOTTOM_WIDTH - PAD - HEIGHT,
                           (HEIGHT + PAD) * i + PAD + BORDER - scrollOffset, 0.0f,
@@ -182,13 +198,20 @@ void drawWheelOptions(const Wheel *w, float scrollOffset) {
                           HEIGHT - 2 * BORDER,
                           white);
 
-        C2D_DrawText(&w->optionsText[i], 0, PAD + BORDER + TEXT_HPAD, (HEIGHT + PAD) * i + PAD + BORDER + TEXT_VPAD - scrollOffset, 0.0f, 0.8f, 0.8f);
-
         drawCross(BOTTOM_WIDTH - PAD - HEIGHT + CROSS_PAD,
                   (HEIGHT + PAD) * i + PAD + BORDER + CROSS_PAD - scrollOffset,
                   HEIGHT - 2 * BORDER - 2 * CROSS_PAD,
                   1.0f, black);
+
     }
+
+    // edge cover
+    C2D_DrawRectSolid(BOTTOM_WIDTH - PAD,
+                      0.0f, 0.0f,
+                      PAD,
+                      BOTTOM_HEIGHT,
+                      white);
+
 }
 
 void addWheelOption(Wheel *w) {
