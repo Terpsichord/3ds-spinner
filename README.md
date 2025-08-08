@@ -10,4 +10,4 @@ This a simple 3DS app that allows you to create a spinner to randomly select an 
 - Press on the text on item to change what it says
 - Press on the cross to remove an item
 
-The list you create *should* persist between sessions of the app.
+The list you create will persist between sessions of the app.
